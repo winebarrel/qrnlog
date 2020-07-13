@@ -4,16 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/jamiealquiza/tachymeter"
 	jsoniter "github.com/json-iterator/go"
 )
-
-var ReadLineBufSize = 4096
 
 const PtFingerprint = "pt-fingerprint"
 
@@ -23,6 +19,12 @@ type QueryLog struct {
 }
 
 func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
+	qs, tms, err := parseLines(file)
+
+	if err != nil {
+		return nil, err
+	}
+
 	cmd, stdin, stdout, stderr, err := makeCmd(PtFingerprint)
 
 	if err != nil {
@@ -39,34 +41,22 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 		_ = cmd.Process.Kill()
 	}()
 
-	ch := make(chan time.Duration)
+	// tailf stderr
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+
+		for scanner.Scan() {
+			fmt.Fprint(os.Stderr, scanner.Text())
+		}
+	}()
+
 	done := make(chan map[string][]time.Duration)
+	go aggregate(stdout, tms, done)
 
-	go tailfStderr(stderr)
-	go aggregate(stdout, ch, done)
-
-	reader := bufio.NewReader(file)
-
-	for {
-		line, err := readLine(reader)
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		var queryLog QueryLog
-
-		if err := jsoniter.Unmarshal(line, &queryLog); err != nil {
-			return nil, err
-		}
-
-		fmt.Fprintf(stdin, "%s;\n", queryLog.Query)
-		ch <- queryLog.Time
+	for _, q := range qs {
+		fmt.Fprintf(stdin, "%s;\n", q)
 	}
 
-	close(ch)
 	stdin.Close()
 	m := <-done
 
@@ -77,59 +67,34 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	return calculate(m), nil
 }
 
-func makeCmd(s string) (cmd *exec.Cmd, stdin io.WriteCloser, stdout io.ReadCloser, stderr io.ReadCloser, err error) {
-	cmd = exec.Command(s)
-
-	stdin, err = cmd.StdinPipe()
-
-	if err != nil {
-		return
-	}
-
-	stdout, err = cmd.StdoutPipe()
-
-	if err != nil {
-		return
-	}
-
-	stderr, err = cmd.StderrPipe()
-
-	if err != nil {
-		return
-	}
-
-	return
-}
-
-func readLine(reader *bufio.Reader) ([]byte, error) {
-	buf := make([]byte, 0, ReadLineBufSize)
-	var err error
+func parseLines(file io.Reader) ([]string, []time.Duration, error) {
+	reader := bufio.NewReader(file)
+	qs := []string{}
+	tms := []time.Duration{}
 
 	for {
-		line, isPrefix, e := reader.ReadLine()
-		err = e
+		line, err := readLine(reader)
 
-		if len(line) > 0 {
-			buf = append(buf, line...)
-		}
-
-		if !isPrefix || err != nil {
+		if err == io.EOF {
 			break
+		} else if err != nil {
+			return nil, nil, err
 		}
+
+		var queryLog QueryLog
+
+		if err := jsoniter.Unmarshal(line, &queryLog); err != nil {
+			return nil, nil, err
+		}
+
+		qs = append(qs, queryLog.Query)
+		tms = append(tms, queryLog.Time)
 	}
 
-	return buf, err
+	return qs, tms, nil
 }
 
-func tailfStderr(reader io.Reader) {
-	scanner := bufio.NewScanner(reader)
-
-	for scanner.Scan() {
-		fmt.Fprint(os.Stderr, scanner.Text())
-	}
-}
-
-func aggregate(reader io.Reader, ch chan time.Duration, done chan map[string][]time.Duration) {
+func aggregate(reader io.Reader, tms []time.Duration, done chan map[string][]time.Duration) {
 	defer func() {
 		close(done)
 	}()
@@ -137,20 +102,16 @@ func aggregate(reader io.Reader, ch chan time.Duration, done chan map[string][]t
 	m := map[string][]time.Duration{}
 	scanner := bufio.NewScanner(reader)
 
-	for tm := range ch {
-		if scanner.Scan() {
-			query := scanner.Text()
-			ts, ok := m[query]
+	for i := 0; scanner.Scan(); i++ {
+		query := scanner.Text()
+		ts, ok := m[query]
 
-			if !ok {
-				ts = []time.Duration{}
-			}
-
-			ts = append(ts, tm)
-			m[query] = ts
-		} else {
-			log.Fatalf("cannot read line from log")
+		if !ok {
+			ts = []time.Duration{}
 		}
+
+		ts = append(ts, tms[i])
+		m[query] = ts
 	}
 
 	done <- m
