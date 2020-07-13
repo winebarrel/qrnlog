@@ -25,10 +25,6 @@ type QueryLog struct {
 func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	cmd, stdin, stdout, stderr, err := makeCmd(PtFingerprint)
 
-	defer func() {
-		_ = cmd.Process.Kill()
-	}()
-
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +34,10 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	defer func() {
+		_ = cmd.Process.Kill()
+	}()
 
 	ch := make(chan time.Duration)
 	done := make(chan map[string][]time.Duration)
