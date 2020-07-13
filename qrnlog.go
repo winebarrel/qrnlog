@@ -36,11 +36,12 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 		return nil, err
 	}
 
-	ptFingerprint := make(chan time.Duration)
+	ch := make(chan time.Duration)
+	done := make(chan bool)
 	m := &sync.Map{}
 
 	go tailfStderr(stderr)
-	go aggregate(stdout, ptFingerprint, m)
+	go aggregate(stdout, ch, done, m)
 
 	reader := bufio.NewReader(file)
 
@@ -60,10 +61,12 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 		}
 
 		fmt.Fprintf(stdin, "%s;\n", queryLog.Query)
-		ptFingerprint <- queryLog.Time
+		ch <- queryLog.Time
 	}
 
+	close(ch)
 	stdin.Close()
+	<-done
 
 	if err := cmd.Wait(); err != nil {
 		return nil, err
@@ -124,10 +127,14 @@ func tailfStderr(reader io.Reader) {
 	}
 }
 
-func aggregate(reader io.Reader, c chan time.Duration, m *sync.Map) {
+func aggregate(reader io.Reader, ch chan time.Duration, done chan bool, m *sync.Map) {
+	defer func() {
+		close(done)
+	}()
+
 	scanner := bufio.NewScanner(reader)
 
-	for tm := range c {
+	for tm := range ch {
 		if scanner.Scan() {
 			query := scanner.Text()
 			v, ok := m.Load(query)
