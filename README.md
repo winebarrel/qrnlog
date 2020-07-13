@@ -1,6 +1,6 @@
 # qrnlog
 
-qrnlog is a [qrn](https://github.com/winebarrel/qrn) log aggregation tool.
+qrnlog is a [qrn](https://github.com/winebarrel/qrn) log aggregation tool using [pt-fingerprint](https://www.percona.com/doc/percona-toolkit/LATEST/pt-fingerprint.html).
 
 ## Usage
 
