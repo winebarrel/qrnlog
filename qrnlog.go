@@ -23,7 +23,7 @@ type QueryLog struct {
 	Time  time.Duration `json:"time"`
 }
 
-func Aggregate(file io.Reader) (map[string]*tachymeter.Metrics, error) {
+func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	cmd, stdin, stdout, stderr, err := makeCmd(PtFingerprint)
 
 	if err != nil {
@@ -40,7 +40,7 @@ func Aggregate(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	m := &sync.Map{}
 
 	go tailfStderr(stderr)
-	go aggregateToMap(stdout, ptFingerprint, m)
+	go aggregate(stdout, ptFingerprint, m)
 
 	reader := bufio.NewReader(file)
 
@@ -124,7 +124,7 @@ func tailfStderr(reader io.Reader) {
 	}
 }
 
-func aggregateToMap(reader io.Reader, c chan time.Duration, m *sync.Map) {
+func aggregate(reader io.Reader, c chan time.Duration, m *sync.Map) {
 	scanner := bufio.NewScanner(reader)
 
 	for tm := range c {

@@ -27,7 +27,7 @@ func main() {
 	file := parseArgs()
 	defer file.Close()
 
-	m, err := qrnlog.Aggregate(file)
+	m, err := qrnlog.Normalize(file)
 
 	if err != nil {
 		log.Fatal(err)
