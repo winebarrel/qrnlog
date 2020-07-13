@@ -1,6 +1,6 @@
 # qrnlog
 
-qrnlog is a [qrn](https://github.com/winebarrel/qrn) log normalization tool using [pt-fingerprint](https://www.percona.com/doc/percona-toolkit/LATEST/pt-fingerprint.html).
+qrnlog is a [qrn](https://github.com/winebarrel/qrn) log normalization tool.
 
 ## Usage
 
