@@ -1,0 +1,4 @@
+/qrnlog
+*.jsonl
+*.gz
+*.sha1sum

@@ -1,0 +1,68 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"os"
+
+	"qrnlog"
+
+	jsoniter "github.com/json-iterator/go"
+)
+
+var version string
+
+func init() {
+	log.SetFlags(0)
+}
+
+func main() {
+	file := parseArgs()
+	defer file.Close()
+
+	m, err := qrnlog.Aggregate(file)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for query, metrics := range m {
+		qt := map[string]interface{}{
+			"Query": query,
+			"Count": metrics.Count,
+			"Time":  metrics.Time,
+		}
+
+		line, err := jsoniter.MarshalToString(qt)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Println(line)
+	}
+}
+
+func parseArgs() io.ReadCloser {
+	if len(os.Args) == 1 {
+		return os.Stdin
+	}
+
+	if len(os.Args) > 2 || os.Args[1] == "-help" {
+		log.Fatalf("usage: %s [-help|-version] QRN_LOG", os.Args[0])
+	}
+
+	if os.Args[1] == "-version" {
+		fmt.Fprintln(os.Stderr, version)
+		os.Exit(0)
+	}
+
+	file, err := os.OpenFile(os.Args[1], os.O_RDONLY, 0)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return file
+}
