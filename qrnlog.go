@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/jamiealquiza/tachymeter"
@@ -37,11 +36,10 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 	}
 
 	ch := make(chan time.Duration)
-	done := make(chan bool)
-	m := &sync.Map{}
+	done := make(chan map[string][]time.Duration)
 
 	go tailfStderr(stderr)
-	go aggregate(stdout, ch, done, m)
+	go aggregate(stdout, ch, done)
 
 	reader := bufio.NewReader(file)
 
@@ -66,7 +64,7 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 
 	close(ch)
 	stdin.Close()
-	<-done
+	m := <-done
 
 	if err := cmd.Wait(); err != nil {
 		return nil, err
@@ -127,39 +125,37 @@ func tailfStderr(reader io.Reader) {
 	}
 }
 
-func aggregate(reader io.Reader, ch chan time.Duration, done chan bool, m *sync.Map) {
+func aggregate(reader io.Reader, ch chan time.Duration, done chan map[string][]time.Duration) {
 	defer func() {
 		close(done)
 	}()
 
+	m := map[string][]time.Duration{}
 	scanner := bufio.NewScanner(reader)
 
 	for tm := range ch {
 		if scanner.Scan() {
 			query := scanner.Text()
-			v, ok := m.Load(query)
-			var ts []time.Duration
+			ts, ok := m[query]
 
-			if ok {
-				ts = v.([]time.Duration)
-			} else {
+			if !ok {
 				ts = []time.Duration{}
 			}
 
 			ts = append(ts, tm)
-			m.Store(query, ts)
+			m[query] = ts
 		} else {
 			log.Fatalf("cannot read line from log")
 		}
 	}
+
+	done <- m
 }
 
-func calculate(m *sync.Map) map[string]*tachymeter.Metrics {
+func calculate(m map[string][]time.Duration) map[string]*tachymeter.Metrics {
 	metricsByQuery := map[string]*tachymeter.Metrics{}
 
-	m.Range(func(k, v interface{}) bool {
-		query := k.(string)
-		ts := v.([]time.Duration)
+	for query, ts := range m {
 		t := tachymeter.New(&tachymeter.Config{Size: len(ts)})
 
 		for _, tm := range ts {
@@ -167,9 +163,7 @@ func calculate(m *sync.Map) map[string]*tachymeter.Metrics {
 		}
 
 		metricsByQuery[query] = t.Calc()
-
-		return true
-	})
+	}
 
 	return metricsByQuery
 }
