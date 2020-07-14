@@ -5,7 +5,7 @@ qrnlog is a [qrn](https://github.com/winebarrel/qrn) log normalization tool.
 ## Usage
 
 ```
-usage: qrnlog [-help|-version] QRN_LOG
+usage: qrnlog [-help|-version] [QRN_LOG]
 ```
 
 ```

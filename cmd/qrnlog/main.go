@@ -60,7 +60,7 @@ func parseArgs() io.ReadCloser {
 	}
 
 	if len(os.Args) > 2 || os.Args[1] == "-help" {
-		log.Fatalf("usage: %s [-help|-version] QRN_LOG", os.Args[0])
+		log.Fatalf("usage: %s [-help|-version] [QRN_LOG]", os.Args[0])
 	}
 
 	if os.Args[1] == "-version" {
