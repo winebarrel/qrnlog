@@ -14,26 +14,26 @@ import (
 const PtFingerprint = "pt-fingerprint"
 const ReadLineBufSize = 4096
 
-type QueryLog struct {
+type JsonLine struct {
 	Query string        `json:"query"`
 	Time  time.Duration `json:"time"`
 }
 
-type TimesQuery struct {
-	Times []time.Duration
-	Query string
+type QueryData struct {
+	Times     []time.Duration
+	LastQuery string
+	QuerySet  map[string]struct{}
 }
 
 type Metrics struct {
 	Metrics     *tachymeter.Metrics
-	Query       string
+	LastQuery   string
 	UniqueCount int
 }
 
 func Normalize(file io.Reader) (map[string]*Metrics, error) {
 	reader := bufio.NewReader(file)
-	m := map[string]*TimesQuery{}
-	uq := map[string]map[string]struct{}{}
+	m := map[string]*QueryData{}
 
 	for {
 		line, err := readLine(reader)
@@ -44,59 +44,49 @@ func Normalize(file io.Reader) (map[string]*Metrics, error) {
 			return nil, err
 		}
 
-		var queryLog QueryLog
+		var jl JsonLine
 
-		if err := jsoniter.Unmarshal(line, &queryLog); err != nil {
+		if err := jsoniter.Unmarshal(line, &jl); err != nil {
 			return nil, err
 		}
 
-		fingerprint := query.Fingerprint(queryLog.Query)
-		addTimesQuery(m, fingerprint, &queryLog)
-		addUniqueCount(uq, fingerprint, queryLog.Query)
+		addQueryData(m, &jl)
 	}
 
-	return calculate(m, uq), nil
+	return calculate(m), nil
 }
 
-func addTimesQuery(m map[string]*TimesQuery, fingerprint string, ql *QueryLog) {
-	tsq, ok := m[fingerprint]
+func addQueryData(m map[string]*QueryData, jl *JsonLine) {
+	fingerprint := query.Fingerprint(jl.Query)
+	qd, ok := m[fingerprint]
 
 	if !ok {
-		tsq = &TimesQuery{
-			Times: []time.Duration{},
-			Query: ql.Query,
+		qd = &QueryData{
+			Times:    []time.Duration{},
+			QuerySet: map[string]struct{}{},
 		}
 	}
 
-	tsq.Times = append(tsq.Times, ql.Time)
-	m[fingerprint] = tsq
+	qd.Times = append(qd.Times, jl.Time)
+	qd.LastQuery = jl.Query
+	qd.QuerySet[jl.Query] = struct{}{}
+	m[fingerprint] = qd
 }
 
-func addUniqueCount(m map[string]map[string]struct{}, fingerprint string, query string) {
-	xByQuery, ok := m[fingerprint]
-
-	if !ok {
-		xByQuery = map[string]struct{}{}
-	}
-
-	xByQuery[query] = struct{}{}
-	m[fingerprint] = xByQuery
-}
-
-func calculate(m map[string]*TimesQuery, uq map[string]map[string]struct{}) map[string]*Metrics {
+func calculate(m map[string]*QueryData) map[string]*Metrics {
 	metricsByQuery := map[string]*Metrics{}
 
-	for query, tsq := range m {
-		t := tachymeter.New(&tachymeter.Config{Size: len(tsq.Times)})
+	for query, qd := range m {
+		t := tachymeter.New(&tachymeter.Config{Size: len(qd.Times)})
 
-		for _, tm := range tsq.Times {
+		for _, tm := range qd.Times {
 			t.AddTime(tm)
 		}
 
 		metricsByQuery[query] = &Metrics{
 			Metrics:     t.Calc(),
-			Query:       tsq.Query,
-			UniqueCount: len(uq[query]),
+			LastQuery:   qd.LastQuery,
+			UniqueCount: len(qd.QuerySet),
 		}
 	}
 

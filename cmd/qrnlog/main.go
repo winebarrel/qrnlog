@@ -38,7 +38,7 @@ func main() {
 	for query, mq := range m {
 		qt := QueryTime{
 			Query:       query,
-			LastQuery:   mq.Query,
+			LastQuery:   mq.LastQuery,
 			Count:       mq.Metrics.Count,
 			UniqueCount: mq.UniqueCount,
 			Time:        mq.Metrics.Time,
