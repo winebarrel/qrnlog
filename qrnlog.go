@@ -19,9 +19,19 @@ type QueryLog struct {
 	Time  time.Duration `json:"time"`
 }
 
-func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
+type TimesQuery struct {
+	Times []time.Duration
+	Query string
+}
+
+type MetricsQuery struct {
+	Query   string
+	Metrics *tachymeter.Metrics
+}
+
+func Normalize(file io.Reader) (map[string]*MetricsQuery, error) {
 	reader := bufio.NewReader(file)
-	m := map[string][]time.Duration{}
+	m := map[string]*TimesQuery{}
 
 	for {
 		line, err := readLine(reader)
@@ -39,30 +49,36 @@ func Normalize(file io.Reader) (map[string]*tachymeter.Metrics, error) {
 		}
 
 		fingerprint := query.Fingerprint(queryLog.Query)
-		ts, ok := m[fingerprint]
+		tsq, ok := m[fingerprint]
 
 		if !ok {
-			ts = []time.Duration{}
+			tsq = &TimesQuery{
+				Times: []time.Duration{},
+				Query: queryLog.Query,
+			}
 		}
 
-		ts = append(ts, queryLog.Time)
-		m[fingerprint] = ts
+		tsq.Times = append(tsq.Times, queryLog.Time)
+		m[fingerprint] = tsq
 	}
 
 	return calculate(m), nil
 }
 
-func calculate(m map[string][]time.Duration) map[string]*tachymeter.Metrics {
-	metricsByQuery := map[string]*tachymeter.Metrics{}
+func calculate(m map[string]*TimesQuery) map[string]*MetricsQuery {
+	metricsByQuery := map[string]*MetricsQuery{}
 
-	for query, ts := range m {
-		t := tachymeter.New(&tachymeter.Config{Size: len(ts)})
+	for query, tsq := range m {
+		t := tachymeter.New(&tachymeter.Config{Size: len(tsq.Times)})
 
-		for _, tm := range ts {
+		for _, tm := range tsq.Times {
 			t.AddTime(tm)
 		}
 
-		metricsByQuery[query] = t.Calc()
+		metricsByQuery[query] = &MetricsQuery{
+			Metrics: t.Calc(),
+			Query:   tsq.Query,
+		}
 	}
 
 	return metricsByQuery

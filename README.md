@@ -28,6 +28,6 @@ $ head log.jsonl
 ...
 
 $ qrnlog log.jsonl # or `cat log.jsonl | qrnlog`
-{"Query":"select ?","Count":460086,"Time":{"Cumulative":26670596278,"HMean":54857,"Avg":57968,"P50":53486,"P75":60209,"P95":91713,"P99":124969,"P999":175905,"Long5p":113644,"Short5p":40984,"Max":1153591,"Min":32122,"StdDev":17490,"Range":1121469}}
-{"Query":"select now()","Count":460086,"Time":{"Cumulative":27068202632,"HMean":56075,"Avg":58832,"P50":54373,"P75":60430,"P95":91866,"P99":126844,"P999":179187,"Long5p":115363,"Short5p":43446,"Max":1391779,"Min":33477,"StdDev":16908,"Range":1358302}}
+{"Query":"select now()","LastQuery":"select now()","Count":134118,"Time":{"Cumulative":9422205208,"HMean":68006,"Avg":70253,"P50":67195,"P75":72774,"P95":102030,"P99":133245,"P999":179611,"Long5p":123863,"Short5p":53248,"Max":1302663,"Min":36794,"StdDev":15983,"Range":1265869}}
+{"Query":"select ?","LastQuery":"select 1","Count":134118,"Time":{"Cumulative":8655022244,"HMean":62221,"Avg":64532,"P50":61012,"P75":65928,"P95":98715,"P99":124093,"P999":166922,"Long5p":115808,"Short5p":48514,"Max":348380,"Min":34074,"StdDev":15021,"Range":314306}}
 ```
