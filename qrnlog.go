@@ -24,14 +24,16 @@ type TimesQuery struct {
 	Query string
 }
 
-type MetricsQuery struct {
-	Query   string
-	Metrics *tachymeter.Metrics
+type Metrics struct {
+	Metrics     *tachymeter.Metrics
+	Query       string
+	UniqueCount int
 }
 
-func Normalize(file io.Reader) (map[string]*MetricsQuery, error) {
+func Normalize(file io.Reader) (map[string]*Metrics, error) {
 	reader := bufio.NewReader(file)
 	m := map[string]*TimesQuery{}
+	uq := map[string]map[string]struct{}{}
 
 	for {
 		line, err := readLine(reader)
@@ -49,24 +51,40 @@ func Normalize(file io.Reader) (map[string]*MetricsQuery, error) {
 		}
 
 		fingerprint := query.Fingerprint(queryLog.Query)
-		tsq, ok := m[fingerprint]
-
-		if !ok {
-			tsq = &TimesQuery{
-				Times: []time.Duration{},
-				Query: queryLog.Query,
-			}
-		}
-
-		tsq.Times = append(tsq.Times, queryLog.Time)
-		m[fingerprint] = tsq
+		addTimesQuery(m, fingerprint, &queryLog)
+		addUniqueCount(uq, fingerprint, queryLog.Query)
 	}
 
-	return calculate(m), nil
+	return calculate(m, uq), nil
 }
 
-func calculate(m map[string]*TimesQuery) map[string]*MetricsQuery {
-	metricsByQuery := map[string]*MetricsQuery{}
+func addTimesQuery(m map[string]*TimesQuery, fingerprint string, ql *QueryLog) {
+	tsq, ok := m[fingerprint]
+
+	if !ok {
+		tsq = &TimesQuery{
+			Times: []time.Duration{},
+			Query: ql.Query,
+		}
+	}
+
+	tsq.Times = append(tsq.Times, ql.Time)
+	m[fingerprint] = tsq
+}
+
+func addUniqueCount(m map[string]map[string]struct{}, fingerprint string, query string) {
+	xByQuery, ok := m[fingerprint]
+
+	if !ok {
+		xByQuery = map[string]struct{}{}
+	}
+
+	xByQuery[query] = struct{}{}
+	m[fingerprint] = xByQuery
+}
+
+func calculate(m map[string]*TimesQuery, uq map[string]map[string]struct{}) map[string]*Metrics {
+	metricsByQuery := map[string]*Metrics{}
 
 	for query, tsq := range m {
 		t := tachymeter.New(&tachymeter.Config{Size: len(tsq.Times)})
@@ -75,9 +93,10 @@ func calculate(m map[string]*TimesQuery) map[string]*MetricsQuery {
 			t.AddTime(tm)
 		}
 
-		metricsByQuery[query] = &MetricsQuery{
-			Metrics: t.Calc(),
-			Query:   tsq.Query,
+		metricsByQuery[query] = &Metrics{
+			Metrics:     t.Calc(),
+			Query:       tsq.Query,
+			UniqueCount: len(uq[query]),
 		}
 	}
 

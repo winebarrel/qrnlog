@@ -14,10 +14,11 @@ import (
 var version string
 
 type QueryTime struct {
-	Query     string
-	LastQuery string
-	Count     int
-	Time      interface{}
+	Query       string
+	LastQuery   string
+	Count       int
+	UniqueCount int
+	Time        interface{}
 }
 
 func init() {
@@ -36,10 +37,11 @@ func main() {
 
 	for query, mq := range m {
 		qt := QueryTime{
-			Query:     query,
-			LastQuery: mq.Query,
-			Count:     mq.Metrics.Count,
-			Time:      mq.Metrics.Time,
+			Query:       query,
+			LastQuery:   mq.Query,
+			Count:       mq.Metrics.Count,
+			UniqueCount: mq.UniqueCount,
+			Time:        mq.Metrics.Time,
 		}
 
 		line, err := jsoniter.ConfigFastest.MarshalToString(qt)
