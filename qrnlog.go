@@ -29,6 +29,7 @@ type Metrics struct {
 	Metrics     *tachymeter.Metrics
 	LastQuery   string
 	UniqueCount int
+	TimePct     float64
 }
 
 func Normalize(file io.Reader) (map[string]*Metrics, error) {
@@ -75,6 +76,7 @@ func addQueryData(m map[string]*QueryData, jl *JsonLine) {
 
 func calculate(m map[string]*QueryData) map[string]*Metrics {
 	metricsByQuery := map[string]*Metrics{}
+	tolalTime := time.Duration(0)
 
 	for query, qd := range m {
 		t := tachymeter.New(&tachymeter.Config{Size: len(qd.Times)})
@@ -83,11 +85,18 @@ func calculate(m map[string]*QueryData) map[string]*Metrics {
 			t.AddTime(tm)
 		}
 
-		metricsByQuery[query] = &Metrics{
+		metrics := &Metrics{
 			Metrics:     t.Calc(),
 			LastQuery:   qd.LastQuery,
 			UniqueCount: len(qd.QuerySet),
 		}
+
+		metricsByQuery[query] = metrics
+		tolalTime += metrics.Metrics.Time.Cumulative
+	}
+
+	for _, m := range metricsByQuery {
+		m.TimePct = float64(m.Metrics.Time.Cumulative) / float64(tolalTime) * 100
 	}
 
 	return metricsByQuery

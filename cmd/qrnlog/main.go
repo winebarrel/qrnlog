@@ -18,6 +18,7 @@ type QueryTime struct {
 	LastQuery   string
 	Count       int
 	UniqueCount int
+	TimePct     float64
 	Time        interface{}
 }
 
@@ -41,6 +42,7 @@ func main() {
 			LastQuery:   mq.LastQuery,
 			Count:       mq.Metrics.Count,
 			UniqueCount: mq.UniqueCount,
+			TimePct:     mq.TimePct,
 			Time:        mq.Metrics.Time,
 		}
 
